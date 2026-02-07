@@ -1,0 +1,114 @@
+!DOCTYPE html
+html lang=zh-TW
+head
+    meta charset=UTF-8
+    meta name=viewport content=width=device-width, initial-scale=1.0
+    title2027 尾牙抽獎系統title
+    script src=httpsunpkg.comvue@3distvue.global.jsscript
+    script src=httpscdn.jsdelivr.netnpmcanvas-confetti@1.5.1distconfetti.browser.min.jsscript
+    style
+        root { --gold #f1c40f; --red #c0392b; }
+        body { background #000; color white; font-family Microsoft JhengHei, sans-serif; text-align center; margin 0; overflow hidden; }
+        .full-screen { display flex; flex-direction column; justify-content center; align-items center; height 100vh; width 100vw; }
+        
+         開場圖樣式 
+        .intro-img { width 100%; height 100%; object-fit cover; }  圖片會鋪滿全螢幕 
+        
+         抽獎轉動字體 
+        .rolling-text { font-size 15vw; font-weight bold; color #fff; text-shadow 0 0 30px var(--gold); }
+        .prize-title { font-size 5vw; color var(--gold); margin-bottom 20px; }
+
+         手機控制面板 
+        .admin-box { background #fff; color #333; padding 30px; border-radius 20px; width 80%; }
+        .btn { background var(--red); color #fff; border none; padding 20px; width 100%; font-size 24px; border-radius 10px; cursor pointer; margin-top 10px; }
+    style
+head
+body
+    div id=app
+        div v-if=!isAdmin class=full-screen
+            div v-if=status === 'IDLE' style=width 100%; height 100%;
+                img src=這裡換成你的開場圖連結 class=intro-img alt=2027 尾牙開場
+            div
+
+            div v-if=status === 'ROLL'
+                div class=prize-title正在抽取：{{ currentPrize }}div
+                div class=rolling-text{{ rollingName }}div
+            div
+
+            div v-if=status === 'WIN'
+                div class=prize-title恭喜獲獎！獎項：{{ currentPrize }}div
+                div class=rolling-text style=color var(--gold);{{ winner }}div
+            div
+        div
+
+        div v-else class=full-screen style=background #eee;
+            div class=admin-box
+                h2🎤 主持人控制器h2
+                select v-model=currentPrize style=width 100%; padding 10px; font-size 20px;
+                    option v-for=p in prizes value=p{{p}}option
+                select
+                button v-if=status !== 'ROLL' @click=startDraw class=btn🚀 開始抽獎 (切換畫面)button
+                button v-if=status === 'ROLL' @click=stopDraw class=btn style=background orange;🛑 停止開獎button
+                button @click=resetAll style=backgroundnone; bordernone; color#999; margin-top20px;重置回開場圖片button
+            div
+        div
+    div
+
+    script
+        const { createApp } = Vue;
+        const GAS_URL = 這裡填入你的GAS網址; 
+
+        createApp({
+            data() {
+                return {
+                    isAdmin new URLSearchParams(window.location.search).get('mode') === 'admin',
+                    status 'IDLE',
+                    winner '',
+                    rollingName '',
+                    currentPrize '八獎',
+                    prizes ['頭獎', '二獎', '三獎', '五獎', '六獎', '七獎', '八獎'],
+                    members [],
+                    lastWinner ''
+                }
+            },
+            mounted() {
+                this.sync();
+                setInterval(this.sync, 1500);  每一秒半檢查一次資料庫
+                setInterval(this.doAnimation, 50);  動畫滾動速度
+            },
+            methods {
+                async sync() {
+                    const res = await fetch(GAS_URL);
+                    const data = await res.json();
+                    this.status = data.status;
+                    this.winner = data.winner;
+                    this.members = data.members;
+                    if (this.status === 'WIN' && this.winner !== this.lastWinner) {
+                        confetti({ particleCount 150, spread 70, origin { y 0.6 } });
+                        this.lastWinner = this.winner;
+                    }
+                },
+                doAnimation() {
+                    if (this.status === 'ROLL') {
+                        const pool = this.members.filter(m = !m.isWon);
+                        this.rollingName = pool[Math.floor(Math.random()  pool.length)].name;
+                    }
+                },
+                async startDraw() {
+                    await fetch(GAS_URL, { method 'POST', body JSON.stringify({ action 'startRoll' }) });
+                },
+                async stopDraw() {
+                    const pool = this.members.filter(m = !m.isWon);
+                    const luckyOne = pool[Math.floor(Math.random()  pool.length)];
+                    await fetch(GAS_URL, { method 'POST', body JSON.stringify({ 
+                        action 'setWinner', name luckyOne.name, prize this.currentPrize 
+                    }) });
+                },
+                async resetAll() {
+                    await fetch(GAS_URL, { method 'POST', body JSON.stringify({ action 'reset' }) });
+                }
+            }
+        }).mount('#app');
+    script
+body
+html
